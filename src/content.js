@@ -1,4 +1,4 @@
-import './widget.css';
+import './widget/widget.css';
 
 (function () {
     if (document.getElementById('my-widget-iframe')) return;

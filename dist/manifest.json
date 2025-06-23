@@ -3,7 +3,7 @@
   "name": "In-Page Widget Extension",
   "version": "1.0",
   "description": "Injects a draggable floating widget into any webpage",
-  "permissions": [],
+  "permissions": ["storage", "nativeMessaging"],
   "host_permissions": ["<all_urls>"],
   "content_scripts": [
     {

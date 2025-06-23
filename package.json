@@ -5,11 +5,15 @@
   "scripts": {
     "build": "webpack"
   },
+  "dependencies": {
+    "@zoom/meetingsdk": "3.10.0"
+  },
   "devDependencies": {
     "copy-webpack-plugin": "^13.0.0",
     "css-loader": "^6.0.0",
     "style-loader": "^3.0.0",
     "webpack": "^5.0.0",
+    "webpack-bundle-analyzer": "^4.10.2",
     "webpack-cli": "^4.0.0"
   }
 }
