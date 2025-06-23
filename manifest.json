@@ -3,8 +3,13 @@
   "name": "In-Page Widget Extension",
   "version": "1.0",
   "description": "Injects a draggable floating widget into any webpage",
-  "permissions": ["storage", "nativeMessaging"],
-  "host_permissions": ["<all_urls>"],
+  "permissions": ["storage", "scripting",
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess"],
+  "host_permissions": ["*://source.zoom.us/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
@@ -14,8 +19,29 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["widget.html"],
+      "resources": [
+        "dist/*",
+        "dist/zoom/*",
+        "dist/zoom/vendor/*",
+        "dist/zoom/lib/av/js_media.min.js",
+        "widget.html"
+      ],
       "matches": ["<all_urls>"]
     }
-  ]
+  ],
+  "action": {
+    "default_title": "Zoom Widget"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "zoom-redirect-rules",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  }
 }

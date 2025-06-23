@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "extensionPath": "/dist/zoom/3.13.1/lib/av/js_media.min.js"
+      }
+    },
+    "condition": {
+      "urlFilter": "||source.zoom.us/3.13.1/lib/av/js_media.min.js",
+      "resourceTypes": ["script"]
+    }
+  }
+]
