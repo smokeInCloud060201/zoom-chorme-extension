@@ -5,8 +5,10 @@
   "description": "Injects a draggable floating widget into any webpage",
   "permissions": ["storage", "scripting",
     "declarativeNetRequest",
-    "declarativeNetRequestWithHostAccess"],
-  "host_permissions": ["*://source.zoom.us/*"],
+    "declarativeNetRequestWithHostAccess",
+    "webRequest"
+  ],
+  "host_permissions": ["*://zoom.us/*", "http://localhost:8080/*"],
   "background": {
     "service_worker": "background.js"
   },
@@ -21,10 +23,11 @@
     {
       "resources": [
         "dist/*",
-        "dist/zoom/*",
-        "dist/zoom/vendor/*",
-        "dist/zoom/lib/av/js_media.min.js",
-        "widget.html"
+        "dist/zoom/3.13.1/*",
+        "dist/zoom/3.13.1/vendor/*",
+        "dist/zoom/3.13.1/lib/av/js_media.min.js",
+        "widget.html",
+        "icons/assistanceIcon.svg"
       ],
       "matches": ["<all_urls>"]
     }
@@ -33,7 +36,7 @@
     "default_title": "Zoom Widget"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self';"
+    "extension_pages": "script-src 'self'; object-src 'self'"
   },
   "declarative_net_request": {
     "rule_resources": [

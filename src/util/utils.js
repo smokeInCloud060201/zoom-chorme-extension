@@ -1,5 +1,5 @@
 const storeValue = (keySet, valueSet) => {
-    const value = { [keySet]: valueSet }; // <-- dynamic key
+    const value = { [keySet]: valueSet };
     chrome.storage.local.set(value, function() {
         console.log('Value is set with key', keySet, 'value', valueSet);
     });

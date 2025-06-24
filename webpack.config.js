@@ -35,6 +35,7 @@ module.exports = {
                 { from: 'src/util/patch-interceptors.js', to: '.' },
                 { from: "src/zoom", to: "zoom" },
                 { from: "rules.json", to: "." },
+                { from: "src/icons", to: "icons" },
             ]
         }),
         // new BundleAnalyzerPlugin(),
