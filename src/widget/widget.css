@@ -1,9 +1,9 @@
-.my-widget-iframe {
+#kiosk-zoom-widget-iframe{
     position: fixed;
     bottom: 20px;
     left: 20px;
-    width: 254px;
-    min-height: 215px;
+    width: 250px;
+    height: 250px;
     border: none;
     z-index: 2147483647;
     border-radius: 8px;
@@ -13,3 +13,66 @@
     opacity: 0;
     transition: transform 0.4s ease, opacity 0.4s ease;
 }
+
+ .spd-zoom {
+    position: relative;
+    z-index: 1000;
+}
+
+ .spd-zoom .zoom--fixed {
+    position: fixed;
+    bottom: 5vh;
+    width: 100%;
+    justify-content: center;
+}
+
+@media screen and (min-width: 1615px) {
+     .spd-zoom .zoom--fixed {
+        width: 18.59vw;
+    }
+}
+
+/* Hide Zoom top toolbar */
+ .spd-zoom .zoom--fixed .zoommtg-drag-video {
+    display: none !important;
+}
+
+/* Overwrite default Zoom video position */
+ .spd-zoom .zoom--fixed .zmwebsdk-makeStyles-videoCustomize-8 {
+    transform: translate(0px, 0px) !important;
+}
+
+/* Global video position override */
+ .zmwebsdk-makeStyles-videoCustomize-8 {
+    transform: translate(900px, 0px) !important;
+}
+
+/* Transition popper z-index override */
+#transition-popper {
+    z-index: 1000 !important;
+}
+
+/* Hide consent disclaimer dialog */
+ [role=dialog].zoom-MuiPopper-root {
+    display: none;
+}
+
+/* Hide specific Zoom control buttons */
+ button[title='Share Screen'],
+ button[title='Participants'],
+ button[title='Chat'],
+ button[title='Show captions'],
+ button[title='Caption settings'],
+ button[title='Reactions'],
+ button[title='Settings'],
+ button[title='More'] {
+    display: none;
+}
+
+/* Hide (but not remove) Mute, Start Video, and Stop Video buttons */
+ button[title='Mute'],
+ button[title='Start Video'],
+ button[title='Stop Video'] {
+    visibility: hidden;
+}
+

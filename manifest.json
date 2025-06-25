@@ -3,14 +3,18 @@
   "name": "In-Page Widget Extension",
   "version": "1.0",
   "description": "Injects a draggable floating widget into any webpage",
-  "permissions": ["storage", "scripting",
+  "permissions": [
+    "storage",
+    "scripting",
+    "tabs",
     "declarativeNetRequest",
     "declarativeNetRequestWithHostAccess",
     "webRequest"
   ],
   "host_permissions": ["*://zoom.us/*", "http://localhost:8080/*"],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "content_scripts": [
     {
@@ -23,9 +27,9 @@
     {
       "resources": [
         "dist/*",
-        "dist/zoom/3.13.1/*",
-        "dist/zoom/3.13.1/vendor/*",
-        "dist/zoom/3.13.1/lib/av/js_media.min.js",
+        "dist/zoom/3.10.0/*",
+        "dist/zoom/3.10.0/vendor/*",
+        "dist/zoom/3.10.0/lib/av/js_media.min.js",
         "widget.html",
         "icons/assistanceIcon.svg"
       ],
