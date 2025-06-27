@@ -1,3 +1,10 @@
+/*
+When Zoom was injected and start the new meeting. It will try to fetch some JS resource
+It was blocked by CSP(Content Security Policy)
+Use this one to reverse the zoom request from Zoom server to Kiosk server.
+Now Kiosk will be like proxy wrapper to forward the request to ZoomServer
+**/
+
 const originalCreateElement = document.createElement;
 
 document.createElement = function (tagName, options) {

@@ -1,4 +1,11 @@
-const sendMessageToWorker = async (message) => {
+const sendMessageToWorker = async (
+  message,
+  options = { expectResponse: true }
+) => {
+  if (!options.expectResponse) {
+    chrome.runtime.sendMessage(message);
+    return;
+  }
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(message, (response) => {
       if (chrome.runtime.lastError) {
@@ -7,6 +14,108 @@ const sendMessageToWorker = async (message) => {
       resolve(response);
     });
   });
+};
+
+const subscribeVAFeatureToggle = async () => {
+  const config = await getValue("kioskConfig");
+  const host = config?.kioskHost || "https://localhost:test";
+  const featureToggleUrl = `${host}/khaos/v1/features`;
+  return new EventSource(`${featureToggleUrl}/va`);
+};
+
+const showExtension = async () => {
+  const toastRoot = document.createElement("div");
+  toastRoot.id = "toast-container";
+  document.body.appendChild(toastRoot);
+
+  try {
+    const isSessionValid = await sendMessageToWorker({
+      from: "content-script",
+      type: "check-session-status-valid",
+    });
+
+    if (isSessionValid) {
+      mountWidgetIframe();
+    } else {
+      mountAssistanceIcon();
+    }
+  } catch (err) {
+    console.error("Error contacting service worker:", err);
+    mountAssistanceIcon();
+  }
+};
+
+const getValue = (keySet) => {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get([keySet], (result) => {
+      if (chrome.runtime.lastError) {
+        return reject(chrome.runtime.lastError);
+      }
+      resolve(result[keySet]);
+    });
+  });
+};
+
+const MAX_RETRIES = 5;
+let retryCount = 0;
+const startFeatureToggleEventSource = async () => {
+  try {
+    const eventSource = await subscribeVAFeatureToggle();
+    const { kioskName } = await getValue("kioskConfig");
+
+    eventSource.addEventListener("data", async (event) => {
+      try {
+        const parsed = JSON.parse(event.data);
+        const kioskFeatureConfig = parsed[kioskName];
+        console.log("Received feature toggle data:", kioskFeatureConfig);
+        chrome.storage.local.set({ featureFlag: kioskFeatureConfig?.enable });
+        if (kioskFeatureConfig?.enable) {
+          showExtension();
+        } else {
+          const isInSession = await getValue("inSession");
+          if (isInSession) {
+            if (!document.getElementById("kiosk-zoom-widget-iframe")) {
+              showExtension();
+            }
+          } else {
+            unmountAssistanceIcon();
+            unmountWidgetIframe();
+          }
+        }
+      } catch (err) {
+        console.error("Failed to parse feature toggle data", err);
+      }
+    });
+
+    eventSource.onerror = (err) => {
+      console.error("EventSource error", err);
+      eventSource.close();
+
+      if (retryCount < MAX_RETRIES) {
+        const delay = 1000 * Math.pow(2, retryCount); // exponential backoff
+        retryCount++;
+        setTimeout(() => {
+          console.log(`Retrying EventSource (attempt ${retryCount})...`);
+          startFeatureToggleEventSource();
+        }, delay);
+      } else {
+        console.error("Max retries reached. Giving up on EventSource.");
+      }
+    };
+  } catch (err) {
+    console.error("Failed to subscribeVAFeatureToggle()", err);
+
+    if (retryCount < MAX_RETRIES) {
+      const delay = 1000 * Math.pow(2, retryCount);
+      retryCount++;
+      setTimeout(() => {
+        console.log(`Retrying setup (attempt ${retryCount})...`);
+        startFeatureToggleEventSource();
+      }, delay);
+    } else {
+      console.error("Max retries reached in setup. Giving up.");
+    }
+  }
 };
 
 const mountAssistanceIcon = () => {
@@ -43,6 +152,51 @@ const mountWidgetIframe = () => {
   unmountAssistanceIcon();
 };
 
+const createToast = ({ message, duration = null, iconType = "non" }) => {
+  const container = document.getElementById("toast-container");
+
+  const toast = document.createElement("div");
+  toast.className = "toast";
+
+  // Icon
+  if (iconType !== "none") {
+    const icon = document.createElement("div");
+    icon.className = "toast-icon";
+    if (iconType === "dot") {
+      icon.classList.add("icon-dot");
+      toast.classList.add("dot");
+    } else if (iconType === "spinner") {
+      icon.classList.add("icon-spinner");
+      toast.classList.add("spinner");
+    }
+    toast.appendChild(icon);
+  }
+
+  const msg = document.createElement("div");
+  msg.textContent = message;
+  toast.appendChild(msg);
+
+  container.appendChild(toast);
+
+  if (typeof duration === "number" && duration > 0) {
+    setTimeout(() => removeToast(toast), duration);
+  }
+
+  return toast;
+};
+
+const removeToast = (toastEl) => {
+  toastEl.style.animation = "fadeOut 0.3s forwards";
+  setTimeout(() => toastEl.remove(), 300);
+};
+
+const removeToastByClassName = (name) => {
+  const toast = document.querySelector(`.toast.${name}`);
+  if (toast) {
+    removeToast(toast);
+  }
+};
+
 const unmountWidgetIframe = () => {
   const iframe = document.getElementById("kiosk-zoom-widget-iframe");
   if (iframe) {
@@ -60,48 +214,97 @@ const unmountAssistanceIcon = () => {
   }
 };
 
-(async function () {
-  if (document.getElementById("my-widget-iframe")) {
-    return;
-  }
-
-  try {
-    const isSessionValid = await sendMessageToWorker({
-      from: "content-script",
-      type: "check-session-status-valid",
-    });
-
-    if (isSessionValid) {
-      mountWidgetIframe();
-    } else {
-      mountAssistanceIcon();
-    }
-  } catch (err) {
-    console.error("Error contacting service worker:", err);
-    mountAssistanceIcon();
-  }
+(async () => {
+  startFeatureToggleEventSource();
 })();
 
 // Message listener for storing token
-window.addEventListener("message", (event) => {
-  if (event.data?.source === "kiosk-zoom") {
-    switch (event?.data?.payload?.type) {
-      case "GET_ACCESS_TOKEN": {
-        const token = event?.data?.payload?.data;
-        chrome.storage.local.set({ accessToken: token }, () => {
-          console.log('Value is set with key "accessToken", value:', token);
-        });
+window.addEventListener("message", async (event) => {
+  const source = event.data?.source;
+  if (source === "kiosk-zoom") {
+    const type = event?.data?.payload?.type;
+    const data = event?.data?.payload?.data;
+
+    switch (type) {
+      case "enable-kiosk-zoom-extension": {
+        const { accessToken, kioskName, featureFlag, kioskHost } = data;
+
+        const kioskConfig = {
+          accessToken,
+          kioskName,
+          featureFlag,
+          kioskHost,
+        };
+
+        chrome.storage.local.set({ kioskConfig });
+
         break;
       }
       case "end-session":
-      case "join-session-fail":
+      case "join-session-fail": {
         unmountWidgetIframe();
-        mountAssistanceIcon();
-        break;
+        removeToastByClassName("dot");
+        removeToastByClassName("spinner");
 
-      default:
+        const featureFlag = await getValue("featureFlag");
+
+        if (featureFlag) {
+          mountAssistanceIcon();
+        } else {
+          unmountAssistanceIcon();
+        }
+        break;
+      }
+
+      case "add-toast": {
+        createToast({
+          duration: data?.duration,
+          iconType: data?.iconType,
+          message: data?.message,
+        });
+        break;
+      }
+
+      case "remove-toast": {
+        removeToastByClassName(data?.name);
+        break;
+      }
+
+      default: {
         console.log("No valid message type");
         break;
+      }
+    }
+  }
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.from === "worker") {
+    const type = message?.type;
+    const payload = message?.payload;
+
+    switch (type) {
+      case "agent-joined-toast": {
+        removeToastByClassName("dot");
+        removeToastByClassName("spinner");
+        createToast({
+          message: `Agent ${payload} has joined !!!`,
+          duration: 5000,
+        });
+        return false;
+      }
+      case "count-call-in-queue": {
+        createToast({
+          message: payload?.message,
+          iconType: payload?.iconType,
+        });
+        return false;
+      }
+
+      default: {
+        console.log("No valid message type");
+        return false;
+      }
     }
   }
 });

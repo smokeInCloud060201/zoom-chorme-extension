@@ -1,15 +1,17 @@
 import {
   changeStatus,
+  countCallInQueue,
   getSessionStatus,
   joinMeeting,
   rejoin,
+  subscribeAgentJoinedEvent,
 } from "./widget/widget.service";
 import { getValue, removeValue, storeValue } from "./util/utils";
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.from === "content-script") {
+  if (["widget", "content-script"].includes(message?.from)) {
     const type = message?.type;
-
+    let eventSource;
     switch (type) {
       case "check-session-status-valid": {
         (async () => {
@@ -47,19 +49,70 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         return true;
       }
-      case "end-session": {
+      case "end-session":
+      case "join-session-fail": {
+        if (eventSource) {
+          eventSource?.close();
+        }
         (async () => {
           const sessionId = await getValue("sessionId");
           await changeStatus(sessionId, "END");
           removeValue("sessionId");
-          sendResponse({ status: "ok" });
+          removeValue("inSession");
         })();
 
-        return true;
+        return false;
+      }
+      case "count-call-in-queue": {
+        (async () => {
+          const queueCount = await countCallInQueue();
+          chrome.tabs.query({}, (tabs) => {
+            for (const tab of tabs) {
+              if (tab.id) {
+                chrome.tabs.sendMessage(tab.id, {
+                  from: "worker",
+                  type: "count-call-in-queue",
+                  payload: {
+                    message: `${queueCount} call in queue`,
+                    iconType: "dot",
+                  },
+                });
+              }
+            }
+          });
+        })();
+
+        return false;
+      }
+      case "subscribe-agent-joined": {
+        (async () => {
+          const sessionId = await getValue("sessionId");
+          eventSource = await subscribeAgentJoinedEvent(sessionId);
+          eventSource.onmessage = (message) => {
+            const data = JSON.parse(message.data);
+            if (!data) {
+              return true;
+            }
+            chrome.tabs.query({}, (tabs) => {
+              for (const tab of tabs) {
+                if (tab.id) {
+                  chrome.tabs.sendMessage(tab.id, {
+                    from: "worker",
+                    type: "agent-joined-toast",
+                    payload: data?.agentName,
+                  });
+                }
+              }
+            });
+          };
+          eventSource.onerror = () => {
+            eventSource.close();
+          };
+        })();
+        return false;
       }
       default: {
         console.log("Not valid type");
-        sendResponse({ status: "unrecognized" });
         return false;
       }
     }

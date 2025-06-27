@@ -1,46 +1,63 @@
-// const BASE_HOST = 'https://khaos-api-sit-run-2.tkg-qa.spdigital.io'
 import { getValue } from "../util/utils";
 
-const BASE_HOST = "http://localhost:8080";
+const getBaseHost = async () => {
+  const config = await getValue("kioskConfig");
+  console.log(" config is ", config, config?.kioskHost);
+  return config?.kioskHost || "https://localhost:test";
+};
 
-const BASE_HALP_URL = `${BASE_HOST}/khaos/v1/halp`;
+const getBaseHalpUrl = async () => {
+  const host = await getBaseHost();
+  return `${host}/khaos/v1/halp`;
+};
 
-export async function getAvailableAgents() {
-  const res = await fetch(`${BASE_HALP_URL}/agents`);
+const getBaseSessionUrl = async () => {
+  const host = await getBaseHost();
+  return `${host}/khaos/v1/sessions`;
+};
+
+export const getAuthHeader = async () => {
+  const { accessToken } = await getValue("kioskConfig");
+  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+};
+
+// Halp
+export const getAvailableAgents = async () => {
+  const baseHalpUrl = await getBaseHalpUrl();
+  const res = await fetch(`${baseHalpUrl}/agents`);
   if (!res.ok) throw new Error("Failed to fetch agents");
   return res.json();
-}
+};
 
-export async function getSchedulesByDate(currentDate) {
-  const url = new URL(`${BASE_HALP_URL}/available-schedules`);
+export const getSchedulesByDate = async (currentDate) => {
+  const baseHalpUrl = await getBaseHalpUrl();
+  const url = new URL(`${baseHalpUrl}/available-schedules`);
   url.searchParams.append("date", currentDate);
 
   const res = await fetch(url.toString());
-  if (!res.ok) throw new Error("Failed to fetch schedules");
   return res.json();
-}
+};
 
-export async function countCallInQueue() {
-  const res = await fetch(`${BASE_HALP_URL}/sessions/count-queued`);
-  if (!res.ok) throw new Error("Failed to fetch queue count");
+export const countCallInQueue = async () => {
+  const baseHalpUrl = await getBaseHalpUrl();
+  const res = await fetch(`${baseHalpUrl}/sessions/count-queued`, {
+    method: "GET",
+    headers: await getAuthHeader(),
+  });
   return res.json();
-}
+};
 
-function subscribeAgentJoinedEvent(sessionId) {
+export const subscribeAgentJoinedEvent = async (sessionId) => {
+  const baseHalpUrl = await getBaseHalpUrl();
   return new EventSource(
-    `${BASE_HALP_URL}/sessions/agent-joined?sessionId=${sessionId}`
+    `${baseHalpUrl}/sessions/agent-joined?sessionId=${sessionId}`
   );
-}
+};
 
-const BASE_SESSION_URL = `${BASE_HOST}/khaos/v1/sessions`;
-
-export async function getAuthHeader() {
-  const token = await getValue("accessToken");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-export async function joinMeeting(kioskName, nature) {
-  const url = new URL(BASE_SESSION_URL);
+//Session
+export const joinMeeting = async (kioskName, nature) => {
+  const baseSessionUrl = await getBaseSessionUrl();
+  const url = new URL(baseSessionUrl);
   url.searchParams.append("kioskName", kioskName);
   url.searchParams.append("nature", nature);
 
@@ -49,24 +66,25 @@ export async function joinMeeting(kioskName, nature) {
     headers: await getAuthHeader(),
   });
   return res.json();
-}
+};
 
-export async function rejoin(sessionId) {
-  const res = await fetch(`${BASE_SESSION_URL}/${sessionId}/rejoin`, {
+export const rejoin = async (sessionId) => {
+  const baseSessionUrl = await getBaseSessionUrl();
+  const res = await fetch(`${baseSessionUrl}/${sessionId}/rejoin`, {
     method: "POST",
     headers: await getAuthHeader(),
   });
 
   if (!res.ok) {
-    // sessionStorage.removeItem(storageKey.kioskSession.key);
     return null;
   }
 
   return res.json();
-}
+};
 
-export async function getSessionStatus(sessionId) {
-  const res = await fetch(`${BASE_SESSION_URL}/${sessionId}/status`, {
+export const getSessionStatus = async (sessionId) => {
+  const baseSessionUrl = await getBaseSessionUrl();
+  const res = await fetch(`${baseSessionUrl}/${sessionId}/status`, {
     method: "GET",
     headers: await getAuthHeader(),
   });
@@ -76,29 +94,15 @@ export async function getSessionStatus(sessionId) {
   }
 
   return res.json();
-}
+};
 
-export async function changeStatus(sessionId, status) {
-  const url = new URL(`${BASE_SESSION_URL}/${sessionId}`);
+export const changeStatus = async (sessionId, status) => {
+  const baseSessionUrl = await getBaseSessionUrl();
+  const url = new URL(`${baseSessionUrl}/${sessionId}`);
   url.searchParams.append("status", status);
 
   await fetch(url.toString(), {
     method: "POST",
     headers: await getAuthHeader(),
   });
-}
-
-export async function updateTxnNature(request) {
-  const res = await fetch(`${BASE_SESSION_URL}/transactionNature`, {
-    method: "POST",
-    headers: {
-      ...getAuthHeader(),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  });
-
-  if (!res.ok) {
-    throw new Error("Failed to update transaction nature");
-  }
-}
+};

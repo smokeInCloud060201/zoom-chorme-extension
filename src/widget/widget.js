@@ -10,7 +10,11 @@ const createZoomMountPoint = () => {
   return zoomElement;
 };
 
-const sendMessage = async (message) => {
+const sendMessage = async (message, options = { expectResponse: true }) => {
+  if (!options.expectResponse) {
+    chrome.runtime.sendMessage(message);
+    return;
+  }
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(message, (response) => {
       if (chrome.runtime.lastError) {
@@ -28,13 +32,16 @@ const observeLeaveButton = () => {
     if (leaveButton) {
       let sessionEnded = false;
 
-      leaveButton.addEventListener("click", async () => {
+      const onClickLeaveButton = async () => {
         if (sessionEnded) {
           return;
         }
         sessionEnded = true;
 
-        await sendMessage({ from: "content-script", type: "end-session" });
+        sendMessage(
+          { from: "widget", type: "end-session" },
+          { expectResponse: false }
+        );
 
         window.parent.postMessage(
           {
@@ -43,13 +50,34 @@ const observeLeaveButton = () => {
           },
           "*"
         );
-      });
+      };
+
+      leaveButton.addEventListener("click", onClickLeaveButton);
+      leaveButton.addEventListener("touchstart", onClickLeaveButton);
 
       observer.disconnect();
     }
   });
 
   observer.observe(document.body, { childList: true, subtree: true });
+};
+
+const enableAudio = () => {
+  const audioBtn = document.querySelector('button[title="Audio"]');
+  if (!audioBtn) {
+    enableAudio();
+    return;
+  }
+  audioBtn.click();
+};
+
+const enableVideo = () => {
+  const videoBtn = document.querySelector('button[title="Start Video"]');
+  if (!videoBtn) {
+    enableVideo();
+    return;
+  }
+  videoBtn.click();
 };
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -90,24 +118,102 @@ document.addEventListener("DOMContentLoaded", async () => {
       window.zoomClient = client;
     }
 
+    chrome.storage.local.set({ inSession: true });
+
     const isSessionValid = await sendMessage({
-      from: "content-script",
+      from: "widget",
       type: "check-session-status-valid",
     });
     let sessionInfo;
 
     if (isSessionValid) {
       sessionInfo = await sendMessage({
-        from: "content-script",
+        from: "widget",
         type: "rejoin-session",
       });
     } else {
+      window.parent.postMessage(
+        {
+          source: "kiosk-zoom",
+          payload: {
+            type: "add-toast",
+            data: {
+              message: `Call`,
+              iconType: "spinner",
+            },
+          },
+        },
+        "*"
+      );
       sessionInfo = await sendMessage({
-        from: "content-script",
+        from: "widget",
         type: "join-session",
       });
+      sendMessage(
+        {
+          from: "widget",
+          type: "subscribe-agent-joined",
+        },
+        { expectResponse: false }
+      );
     }
     await client.join(sessionInfo);
+
+    client?.on("connection-change", ({ state }) => {
+      if (state === "Closed" || state === "Failed") {
+        window.parent.postMessage(
+          {
+            source: "kiosk-zoom",
+            payload: { type: "end-session" },
+          },
+          "*"
+        );
+
+        sendMessage(
+          {
+            from: "widget",
+            type: "end-session",
+          },
+          { expectResponse: false }
+        );
+      }
+    });
+
+    if (isSessionValid) {
+    } else {
+      window.parent.postMessage(
+        {
+          source: "kiosk-zoom",
+          payload: {
+            type: "remove-toast",
+            data: {
+              name: "spinner",
+            },
+          },
+        },
+        "*"
+      );
+      sendMessage(
+        {
+          from: "widget",
+          type: "count-call-in-queue",
+        },
+        { expectResponse: false }
+      );
+      window.parent.postMessage(
+        {
+          source: "kiosk-zoom",
+          payload: {
+            type: "add-toast",
+            data: {
+              message: "Waiting for agent to take the call...",
+              iconType: "spinner",
+            },
+          },
+        },
+        "*"
+      );
+    }
 
     observeLeaveButton();
   } catch (err) {
@@ -118,6 +224,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         payload: { type: "join-session-fail" },
       },
       "*"
+    );
+
+    sendMessage(
+      {
+        from: "widget",
+        type: "join-session-fail",
+      },
+      { expectResponse: false }
     );
   }
 });
