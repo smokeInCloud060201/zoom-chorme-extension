@@ -89,6 +89,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     let client = window.zoomClient;
+
+    chrome.storage.local.get("kioskConfig", ({ kioskConfig }) => {
+      window.kioskHost = kioskConfig?.kioskHost;
+    });
+
     if (!client) {
       client = ZoomMtgEmbedded.createClient();
       await client.init({

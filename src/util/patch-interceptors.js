@@ -54,8 +54,7 @@ function handleSrcOverride(element, value, originalSetAttribute) {
       console.warn("[Zoom Intercept] No callback param found in JSONP URL");
       return;
     }
-
-    const proxyUrl = new URL("http://localhost:8080/khaos/v1/zoom-proxy");
+    const proxyUrl = new URL(`${window.kioskHost}/khaos/v1/zoom-proxy`);
     zoomUrl.searchParams.forEach((val, key) => {
       proxyUrl.searchParams.set(key, val);
     });
