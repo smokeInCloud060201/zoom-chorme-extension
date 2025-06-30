@@ -1,3 +1,15 @@
+// List of host patterns where the Zoom widget is allowed to run
+const whitelistPatterns = [
+  /myinfo\.gov/i,
+  /kiosk.*qa\.spdigital\.sg/i,
+  /^kiosk\.spdigital\.sg$/i,
+  /^localhost(:\d+)?$/i,
+];
+
+/**
+ * Sends a message to the service worker.
+ * If `expectResponse` is false, it sends without waiting for a reply.
+ */
 const sendMessageToWorker = async (
   message,
   options = { expectResponse: true }
@@ -16,6 +28,10 @@ const sendMessageToWorker = async (
   });
 };
 
+/**
+ * Subscribes to VA feature toggle changes from the backend via SSE.
+ * The server will push changes to feature flags in real-time.
+ */
 const subscribeVAFeatureToggle = async () => {
   const config = await getValue("kioskConfig");
   const host = config?.kioskHost || "https://localhost:test";
@@ -23,6 +39,10 @@ const subscribeVAFeatureToggle = async () => {
   return new EventSource(`${featureToggleUrl}/va`);
 };
 
+/**
+ * Mounts the Zoom widget or assistance icon based on session state.
+ * Also injects a container for toast notifications.
+ */
 const showExtension = async () => {
   const toastRoot = document.createElement("div");
   toastRoot.id = "toast-container";
@@ -58,6 +78,11 @@ const getValue = (keySet) => {
 
 const MAX_RETRIES = 5;
 let retryCount = 0;
+
+/**
+ * Initializes feature toggle listener using SSE.
+ * Attempts exponential backoff if connection fails.
+ */
 const startFeatureToggleEventSource = async () => {
   try {
     const eventSource = await subscribeVAFeatureToggle();
@@ -118,6 +143,9 @@ const startFeatureToggleEventSource = async () => {
   }
 };
 
+/**
+ * Renders the assistance icon. Clicking it triggers the Zoom widget.
+ */
 const mountAssistanceIcon = () => {
   const icon = document.createElement("img");
   icon.id = "needAssistanceIcon";
@@ -138,6 +166,10 @@ const mountAssistanceIcon = () => {
   document.body.appendChild(icon);
 };
 
+/**
+ * Loads the Zoom widget in an iframe.
+ * Unmounts the assistance icon once shown.
+ */
 const mountWidgetIframe = () => {
   const iframe = document.createElement("iframe");
   iframe.id = "kiosk-zoom-widget-iframe";
@@ -152,6 +184,9 @@ const mountWidgetIframe = () => {
   unmountAssistanceIcon();
 };
 
+/**
+ * Creates a toast notification element.
+ */
 const createToast = ({ message, duration = null, iconType = "non" }) => {
   const container = document.getElementById("toast-container");
 
@@ -215,10 +250,21 @@ const unmountAssistanceIcon = () => {
 };
 
 (async () => {
-  startFeatureToggleEventSource();
+  const currentHost = window.location.host;
+
+  const isWhitelisted = whitelistPatterns.some((pattern) =>
+    pattern.test(currentHost)
+  );
+
+  if (isWhitelisted) {
+    startFeatureToggleEventSource();
+  }
 })();
 
-// Message listener for storing token
+/**
+ * Handles postMessage events sent from Zoom widget iframe.
+ * Used for communication between iframe and content script.
+ */
 window.addEventListener("message", async (event) => {
   const source = event.data?.source;
   if (source === "kiosk-zoom") {
@@ -278,6 +324,10 @@ window.addEventListener("message", async (event) => {
   }
 });
 
+/**
+ * Handles messages from background (service worker).
+ * Used to show real-time events like agent joining or queue status.
+ */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.from === "worker") {
     const type = message?.type;

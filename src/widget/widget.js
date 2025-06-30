@@ -1,3 +1,14 @@
+/*
+  Zoom Kiosk Integration Script
+
+  This script handles Zoom session embedding, initialization, audio/video setup,
+  session management, and user interaction tracking inside a kiosk environment.
+*/
+
+/**
+ * Creates a mount point in the DOM for the embedded Zoom meeting UI.
+ * Adds a container div with class 'spd-zoom' containing a child div with class 'zoom--fixed'.
+ */
 const createZoomMountPoint = () => {
   const zoomElement = document.createElement("div");
   zoomElement.className = "zoom--fixed";
@@ -10,6 +21,28 @@ const createZoomMountPoint = () => {
   return zoomElement;
 };
 
+/**
+ * Retrieves a value from Chrome's local storage.
+ * @param {string} keySet - The key to retrieve from local storage.
+ * @returns {Promise<any>} The stored value.
+ */
+const getValue = (keySet) => {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get([keySet], (result) => {
+      if (chrome.runtime.lastError) {
+        return reject(chrome.runtime.lastError);
+      }
+      resolve(result[keySet]);
+    });
+  });
+};
+
+/**
+ * Sends a message to the Chrome extension runtime.
+ * @param {object} message - The message payload.
+ * @param {object} options - Options; expectResponse indicates if a response is needed.
+ * @returns {Promise<any>|void}
+ */
 const sendMessage = async (message, options = { expectResponse: true }) => {
   if (!options.expectResponse) {
     chrome.runtime.sendMessage(message);
@@ -25,6 +58,10 @@ const sendMessage = async (message, options = { expectResponse: true }) => {
   });
 };
 
+/**
+ * Observes the DOM for the appearance of the "Leave" button.
+ * Attaches click and touch handlers to detect when the meeting is manually ended.
+ */
 const observeLeaveButton = () => {
   const observer = new MutationObserver(() => {
     const leaveButton = document.querySelector('button[title="Leave"]');
@@ -62,6 +99,10 @@ const observeLeaveButton = () => {
   observer.observe(document.body, { childList: true, subtree: true });
 };
 
+/**
+ * Automatically clicks the "Join Audio" button when it appears.
+ * Recursively calls itself until the button is found.
+ */
 const enableAudio = () => {
   const audioBtn = document.querySelector('button[title="Audio"]');
   if (!audioBtn) {
@@ -71,6 +112,10 @@ const enableAudio = () => {
   audioBtn.click();
 };
 
+/**
+ * Automatically clicks the "Start Video" button when it appears.
+ * Recursively calls itself until the button is found.
+ */
 const enableVideo = () => {
   const videoBtn = document.querySelector('button[title="Start Video"]');
   if (!videoBtn) {
@@ -80,6 +125,7 @@ const enableVideo = () => {
   videoBtn.click();
 };
 
+// Initialize the Zoom session once DOM content is ready
 document.addEventListener("DOMContentLoaded", async () => {
   try {
     const ZoomMtgEmbedded = window?.ZoomMtgEmbedded;
@@ -90,9 +136,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     let client = window.zoomClient;
 
-    chrome.storage.local.get("kioskConfig", ({ kioskConfig }) => {
-      window.kioskHost = kioskConfig?.kioskHost;
-    });
+    const { kioskHost, kioskName } = await getValue("kioskConfig");
+    window.kioskHost = kioskHost;
 
     if (!client) {
       client = ZoomMtgEmbedded.createClient();
@@ -181,6 +226,15 @@ document.addEventListener("DOMContentLoaded", async () => {
           },
           { expectResponse: false }
         );
+      }
+    });
+
+    client?.on("user-added", (payload) => {
+      isAgentJoin = payload?.some(
+        (user) => ![kioskName, "VA Kiosk"]?.includes(user?.name)
+      );
+      if (isAgentJoin) {
+        //Todo: Request API to update sessionStatus to AgentJoined
       }
     });
 

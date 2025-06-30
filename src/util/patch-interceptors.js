@@ -1,9 +1,17 @@
 /*
-When Zoom was injected and start the new meeting. It will try to fetch some JS resource
-It was blocked by CSP(Content Security Policy)
-Use this one to reverse the zoom request from Zoom server to Kiosk server.
-Now Kiosk will be like proxy wrapper to forward the request to ZoomServer
-**/
+  This script intercepts certain Zoom resource requests in environments with strict
+  Content Security Policies (CSP), such as kiosks.
+
+  Problem:
+    - When Zoom SDK is injected and attempts to start a meeting, it loads remote
+      resources (e.g., scripts or JSONP data) from Zoom servers.
+    - CSP may block these requests due to external origins.
+
+  Solution:
+    - Intercept <script> element creation and override the 'src' attribute.
+    - Redirect specific Zoom script URLs to a local copy via chrome.runtime.getURL().
+    - Proxy JSONP API calls to Zoom through a local kiosk server endpoint.
+*/
 
 const originalCreateElement = document.createElement;
 
@@ -36,6 +44,12 @@ document.createElement = function (tagName, options) {
   return element;
 };
 
+/*
+  handleSrcOverride:
+    - Rewrites or proxies certain Zoom resource URLs.
+    - If matching a specific SDK script, replaces it with a local path.
+    - If it's a JSONP API request, proxies it through the kiosk server.
+*/
 function handleSrcOverride(element, value, originalSetAttribute) {
   if (value === "https://source.zoom.us/3.10.0/lib/av/js_media.min.js") {
     const localUrl = chrome.runtime.getURL(
