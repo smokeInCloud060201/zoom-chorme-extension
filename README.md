@@ -1,4 +1,5 @@
-# Zoom Chrome Extension – In-Page Widget
+# Zoomie - Pronounce: Zoom Me
+## Zoom Chrome Extension – In-Page Widget
 
 This Chrome extension injects a lightweight, draggable widget into webpages, designed specifically to facilitate embedded Zoom meetings in kiosk environments. It enhances customer support and remote assistance workflows by integrating real-time Zoom video sessions directly into web-based kiosks.
 
